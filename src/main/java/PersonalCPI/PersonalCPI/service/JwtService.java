@@ -24,7 +24,11 @@ public class JwtService {
     @Value("${security.jwt.expiration-time}")
     private long jwtExpiration;
 
+    // Returns Email Instead
     public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
+    public String extractEmail(String token) {
         return extractClaim(token, Claims::getSubject);
     }
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
@@ -47,15 +51,15 @@ public class JwtService {
         return Jwts
                 .builder()
                 .setClaims(extraClaims)
-                .setSubject(userDetails.getUsername())
+                .setSubject(userDetails.getUsername()) // put username
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSignInKey(), SignatureAlgorithm.ES256)
+                .signWith(getSignInKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token); // get username from token
-        return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+        final String userEmail = extractUsername(token); // get username from token
+        return (userEmail.equals(userDetails.getUsername()) && !isTokenExpired(token));
     }
 
     private boolean isTokenExpired(String token) {

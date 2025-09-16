@@ -1,6 +1,7 @@
 // provide functions for authentication
 package PersonalCPI.PersonalCPI.config;
 
+import PersonalCPI.PersonalCPI.model.User;
 import PersonalCPI.PersonalCPI.repository.UserRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,17 +13,13 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.util.Optional;
+
 @Configuration
 public class ApplicationConfiguration {
     private final UserRepository userRepository;
     public ApplicationConfiguration(UserRepository userRepository) {
         this.userRepository = userRepository;
-    }
-
-    @Bean
-    UserDetailsService userDetailsService() {
-        return username -> userRepository.findByEmail(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found")); // this lambda function puts the script in java
     }
 
     @Bean // encoding passwords
@@ -43,5 +40,28 @@ public class ApplicationConfiguration {
         authProvider.setPasswordEncoder(passwordEncoder());
 
         return authProvider;
+    }
+
+    // test:
+    @Bean
+    UserDetailsService userDetailsService() {
+        return identifier -> {
+            System.out.println("UserDetailsService called with: '" + identifier + "'");
+
+            // try by username
+            Optional<User> user = userRepository.findByUsername(identifier);
+
+            // then try by email
+            if (user.isEmpty()) {
+                user = userRepository.findByEmail(identifier);
+            }
+
+            if (user.isPresent()) {
+                System.out.println("Found user: " + user.get().getUsername());
+            } else {
+                System.out.println("No user found with identifier: " + identifier);
+            }
+            return user.orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        };
     }
 }

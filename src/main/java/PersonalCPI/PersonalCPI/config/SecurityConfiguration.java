@@ -37,6 +37,7 @@ public class SecurityConfiguration {
                 .csrf(csrf ->csrf.disable()) // disable csrf protection
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/auth/**").permitAll() // authorize anything with auth header else not
+                        .requestMatchers("/api/receipts/**").authenticated() // permitAll
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session ->
@@ -49,10 +50,9 @@ public class SecurityConfiguration {
     @Bean // configure cors settings, of what each our specified url can access
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("https://backend.com", "http://localhost:8080")); // only these urls can access backend
+        configuration.setAllowedOrigins(List.of("https://backend.com", "http://localhost:8080")); // only these urls can access
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

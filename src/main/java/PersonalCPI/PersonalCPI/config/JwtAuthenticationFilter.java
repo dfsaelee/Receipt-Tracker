@@ -39,6 +39,54 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter  {
     }
 
     @Override
+    protected void doFilterInternal(
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain
+    ) throws ServletException, IOException {
+        final String authHeader = request.getHeader("Authorization");
+
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            System.out.println("No Bearer token found, continuing without auth");
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        try {
+            final String jwt = authHeader.substring(7);
+            final String userName = jwtService.extractUsername(jwt);
+            System.out.println("Extracted Username: " + userName); // debug
+
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            System.out.println("Current authentication: " + authentication);
+
+            if (userName != null && authentication == null) {
+                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userName);
+                System.out.println("Loaded user details: " + userDetails.getUsername());
+
+                if(jwtService.isTokenValid(jwt, userDetails)) {
+                    System.out.println("Token is VALID");
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities()
+                    );
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                    System.out.println("Authentication set in security context");
+                } else {
+                    System.out.println("Token is INVALID");
+                }
+            }
+            filterChain.doFilter(request, response);
+        } catch (Exception exception) {
+            System.out.println("JWT processing error: " + exception.getMessage());
+            exception.printStackTrace();
+            handlerExceptionResolver.resolveException(request, response, null, exception);
+        }
+    }
+/*
+    @Override
     protected  void doFilterInternal(
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
@@ -67,10 +115,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter  {
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request)); // give auth access to token
                     SecurityContextHolder.getContext().setAuthentication(authToken); // now user is authenticated
                 }
-                filterChain.doFilter(request, response); // reques to continue
             }
+            filterChain.doFilter(request, response); // reques to continue
+
         } catch (Exception exception) {
             handlerExceptionResolver.resolveException(request, response, null, exception);
         }
     }
+    */
 }
