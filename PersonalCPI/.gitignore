@@ -1,4 +1,3 @@
-## Java ## 
 HELP.md
 .gradle
 .env
@@ -37,7 +36,3 @@ out/
 
 ### VS Code ###
 .vscode/
-
-## Misc ## 
-scripts.txt
-plans.txt
