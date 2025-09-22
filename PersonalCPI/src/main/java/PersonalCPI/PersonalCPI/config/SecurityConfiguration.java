@@ -32,6 +32,7 @@ public class SecurityConfiguration {
     @Bean // configure security chain and rules
     public SecurityFilterChain securityFilterChain(HttpSecurity http)  throws Exception {
         http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Add this line
                 .csrf(csrf ->csrf.disable()) // disable csrf protection
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/auth/**").permitAll() // authorize anything with auth header else not
@@ -48,9 +49,17 @@ public class SecurityConfiguration {
     @Bean // configure cors settings, of what each our specified url can access
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("https://backend.com", "http://localhost:8080")); // only these urls can access
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
+
+        // set urls that can be accessed
+        configuration.setAllowedOrigins(List.of("https://backend.com",
+                "http://localhost:8080",
+                "http://localhost:3000",
+                "https://yourdomain.com"));
+
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        configuration.setAllowCredentials(true);
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

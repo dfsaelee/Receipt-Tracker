@@ -1,8 +1,6 @@
 package PersonalCPI.PersonalCPI.controller;
 
-import PersonalCPI.PersonalCPI.dto.LoginUserDto;
-import PersonalCPI.PersonalCPI.dto.RegisterUserDto;
-import PersonalCPI.PersonalCPI.dto.VerifyUserDto;
+import PersonalCPI.PersonalCPI.dto.*;
 import PersonalCPI.PersonalCPI.model.User;
 import PersonalCPI.PersonalCPI.responses.LoginResponse;
 import PersonalCPI.PersonalCPI.service.AuthenticationService;
@@ -26,7 +24,7 @@ public class AuthenticationController {
     @PostMapping("/signup")
     public ResponseEntity<?> register(@RequestBody RegisterUserDto registerUserDto) {
         try {
-            User registeredUser = authenticationService.signup(registerUserDto);
+            UserResponseDto registeredUser = authenticationService.signup(registerUserDto); // Service returns User
             return ResponseEntity.ok(registeredUser);
         }
         catch (IllegalArgumentException e) {
@@ -64,9 +62,9 @@ public class AuthenticationController {
     }
 
     @PostMapping("/resend")
-    public ResponseEntity<?> resendVerificationCode(@RequestParam String email) {
+    public ResponseEntity<?> resendVerificationCode(@RequestBody ResendVerificationDto resendVerificationDto) {
         try {
-            authenticationService.resendVerificationCode(email);
+            authenticationService.resendVerificationCode(resendVerificationDto.getEmail());
             return ResponseEntity.ok("verification code sent");
         }
         catch (RuntimeException e) {

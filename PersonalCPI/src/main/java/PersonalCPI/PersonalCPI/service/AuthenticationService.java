@@ -3,6 +3,7 @@ package PersonalCPI.PersonalCPI.service;
 
 import PersonalCPI.PersonalCPI.dto.LoginUserDto;
 import PersonalCPI.PersonalCPI.dto.RegisterUserDto;
+import PersonalCPI.PersonalCPI.dto.UserResponseDto;
 import PersonalCPI.PersonalCPI.dto.VerifyUserDto;
 import PersonalCPI.PersonalCPI.model.User;
 import PersonalCPI.PersonalCPI.repository.UserRepository;
@@ -35,8 +36,9 @@ public class AuthenticationService {
         this.emailService = emailService;
     }
 
+    /*
     // if new user Signs up
-    public User signup(RegisterUserDto input) {
+    public UserResponseDto signup(RegisterUserDto input) {
         Optional<User> userOptional = userRepository.findByEmail(input.getEmail());
         if (userOptional.isPresent()) {
             User existingUser = userOptional.get();
@@ -52,9 +54,33 @@ public class AuthenticationService {
         user.setVerificationCode(generateVerificationCode());
         user.setVerificationCodeExpiresAt(LocalDateTime.now().plusMinutes(15));
         user.setEnabled(false);
-        userRepository.save(user); // FIX, might not want to saver user before auth
+        userRepository.save(user);
         sendVerificationEmail(user);
-        return user;
+        return UserResponseDto.fromUser(user);
+    }
+    */
+    // Updated signup method in AuthenticationService.java
+    public UserResponseDto signup(RegisterUserDto input) {
+        Optional<User> userOptional = userRepository.findByEmail(input.getEmail());
+        if (userOptional.isPresent()) {
+            User existingUser = userOptional.get();
+            if (!existingUser.isEnabled()) { // user exists not verified
+                throw new IllegalStateException("User already exists but email not verified. Please check your email or request a new verification code.");
+            }
+            else { // user exists and is verified
+                throw new IllegalArgumentException("User with this email already exists. Please login instead.");
+            }
+        }
+        // User doesn't exist, create a new user
+        User user = new User(input.getUsername(), input.getEmail(), passwordEncoder.encode(input.getPassword()));
+        user.setVerificationCode(generateVerificationCode());
+        user.setVerificationCodeExpiresAt(LocalDateTime.now().plusMinutes(15));
+        user.setEnabled(false);
+        userRepository.save(user);
+        sendVerificationEmail(user);
+
+        // Return DTO without sensitive information
+        return UserResponseDto.fromUser(user);
     }
 
     // if user logs in from login screen
@@ -71,7 +97,7 @@ public class AuthenticationService {
                         input.getPassword()
                 )
         );
-        return  user;
+        return user;
     }
 
     // handles checking the verification code, and validates user if correct code
@@ -106,6 +132,7 @@ public class AuthenticationService {
             user.setVerificationCode(generateVerificationCode());
             user.setVerificationCodeExpiresAt(LocalDateTime.now().plusHours(1));
             userRepository.save(user);
+            sendVerificationEmail(user);
         } else {
             throw new RuntimeException("User not found");
         }
