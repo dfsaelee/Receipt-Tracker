@@ -257,27 +257,56 @@ public class ReceiptController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<String> uploadFile(
+    public ResponseEntity<?> uploadFile(
             @RequestParam("file") MultipartFile file
     ) {
         try {
-            String key = "image/" + file.getOriginalFilename();
+            // Get authenticated user ID
+            Long userId = getAuthenticatedUserId();
+            
+            // Generate unique S3 key: receipts/{userId}/{timestamp}_{filename}
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            String originalFilename = file.getOriginalFilename();
+            String key = String.format("receipts/%d/%s_%s", userId, timestamp, originalFilename);
+            
+            // Upload to S3
             s3Service.putObject(key, file);
-            return ResponseEntity.ok(key);
+            
+            // Return structured response with the S3 key
+            return ResponseEntity.ok(Map.of(
+                "key", key,
+                "message", "File uploaded successfully"
+            ));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "User not authenticated"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to upload to bucket");
+                    .body(Map.of("error", "Failed to upload to bucket: " + e.getMessage()));
         }
     }
 
     @GetMapping("/receipt-image")
-    public ResponseEntity<String> getReceiptImage(@RequestParam String key) {
+    public ResponseEntity<?> getReceiptImage(@RequestParam String key) {
         try {
+            // Verify user is authenticated
+            Long userId = getAuthenticatedUserId();
+            
+            // Verify the key belongs to this user (keys are in format: receipts/{userId}/...)
+            if (!key.startsWith("receipts/" + userId + "/")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Access denied to this image"));
+            }
+            
+            // Generate presigned URL
             String url = s3Service.createPresignedGetUrl(key);
-            return ResponseEntity.ok(url);
+            return ResponseEntity.ok(Map.of("url", url));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "User not authenticated"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to Upload to Bucket");
+                    .body(Map.of("error", "Failed to generate image URL: " + e.getMessage()));
         }
     }
 

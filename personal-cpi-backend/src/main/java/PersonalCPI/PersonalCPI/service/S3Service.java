@@ -52,6 +52,19 @@ public class S3Service {
             throw new RuntimeException("Failed to get object");
         }
     }
+
+    // Delete object from S3
+    public void deleteObject(String key) {
+        try {
+            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                    .bucket(s3Buckets.getName())
+                    .key(key)
+                    .build();
+            s3Client.deleteObject(deleteRequest);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to delete object from S3: " + e.getMessage());
+        }
+    }
 }
 
 

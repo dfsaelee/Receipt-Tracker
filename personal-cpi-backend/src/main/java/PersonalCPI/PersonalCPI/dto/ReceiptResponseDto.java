@@ -17,8 +17,10 @@ public class ReceiptResponseDto {
     private String categoryName;
     private BigDecimal amount;
     private LocalDateTime createdAt;
+    private String imageKey; // S3 object key
+    private String imageUrl; // Presigned URL for image access
 
-    public ReceiptResponseDto(Long receiptId, String storeName, LocalDate purchaseDate, Long categoryId, String categoryName, BigDecimal amount, LocalDateTime createdAt) {
+    public ReceiptResponseDto(Long receiptId, String storeName, LocalDate purchaseDate, Long categoryId, String categoryName, BigDecimal amount, LocalDateTime createdAt, String imageKey, String imageUrl) {
         this.receiptId = receiptId;
         this.storeName = storeName;
         this.purchaseDate = purchaseDate;
@@ -26,5 +28,7 @@ public class ReceiptResponseDto {
         this.categoryName = categoryName;
         this.amount = amount;
         this.createdAt = createdAt;
+        this.imageKey = imageKey;
+        this.imageUrl = imageUrl;
     }
 }

@@ -72,13 +72,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter  {
                     SecurityContextHolder.getContext().setAuthentication(authToken); // set auth in security context
                 }  else { // else token is invalid, and give 401
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\": \"Invalid JWT token\"}");
                     return;
                 }
             }
             filterChain.doFilter(request, response);
-        } catch (Exception exception) { // processing error
-            exception.printStackTrace();
-            handlerExceptionResolver.resolveException(request, response, null, exception);
+        } catch (io.jsonwebtoken.MalformedJwtException e) {
+            // Handle malformed JWT tokens (e.g., missing periods, invalid format)
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"Malformed JWT token\"}");
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            // Handle expired tokens
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"JWT token has expired\"}");
+        } catch (io.jsonwebtoken.SignatureException e) {
+            // Handle invalid signature
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"Invalid JWT signature\"}");
+        } catch (Exception exception) {
+            // Handle any other exceptions
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"Authentication failed\"}");
         }
     }
 }

@@ -44,6 +44,9 @@ public class Receipt {
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Column(name = "image_key", length = 500)
+    private String imageKey;
+
     // Foreign key relationships
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -64,6 +67,15 @@ public class Receipt {
         this.userId = userId;
         this.purchaseDate = purchaseDate;
         this.categoryId = categoryId;
+    }
+
+    public Receipt(Long userId, String storeName, LocalDate purchaseDate, Long categoryId, BigDecimal amount, String imageKey) {
+        this.amount = amount;
+        this.storeName = storeName;
+        this.userId = userId;
+        this.purchaseDate = purchaseDate;
+        this.categoryId = categoryId;
+        this.imageKey = imageKey;
     }
 
     public Long getReceiptId() {
@@ -108,6 +120,14 @@ public class Receipt {
 
     public void setPurchaseDate(LocalDate purchaseDate) {
         this.purchaseDate = purchaseDate != null ? purchaseDate : LocalDate.now();
+    }
+
+    public String getImageKey() {
+        return imageKey;
+    }
+
+    public void setImageKey(String imageKey) {
+        this.imageKey = imageKey;
     }
 
     @PrePersist

@@ -17,4 +17,6 @@ public class ReceiptCreateDto {
 
     @NotNull // deprecated
     private BigDecimal amount;
+
+    private String imageKey; // S3 object key for receipt image
 }

@@ -25,11 +25,13 @@ import java.util.stream.Collectors;
 public class ReceiptService {
     private final ReceiptRepository receiptRepository;
     private final CategoryRepository categoryRepository;
+    private final S3Service s3Service;
 
     @Autowired
-    public ReceiptService(ReceiptRepository receiptRepository, CategoryRepository categoryRepository) {
+    public ReceiptService(ReceiptRepository receiptRepository, CategoryRepository categoryRepository, S3Service s3Service) {
         this.receiptRepository = receiptRepository;
         this.categoryRepository = categoryRepository;
+        this.s3Service = s3Service;
     }
 
     // Crud
@@ -46,7 +48,8 @@ public class ReceiptService {
                 createDto.getStoreName(),
                 createDto.getPurchaseDate(),
                 createDto.getCategoryId(),
-                createDto.getAmount()
+                createDto.getAmount(),
+                createDto.getImageKey()
         );
 
         Receipt savedReceipt = receiptRepository.save(receipt);
@@ -117,6 +120,7 @@ public class ReceiptService {
         receipt.setPurchaseDate(updateDto.getPurchaseDate());
         receipt.setCategoryId(updateDto.getCategoryId());
         receipt.setAmount(updateDto.getAmount());
+        receipt.setImageKey(updateDto.getImageKey());
 
         Receipt savedReceipt = receiptRepository.save(receipt);
         return convertToResponseDto(savedReceipt);
@@ -131,6 +135,18 @@ public class ReceiptService {
 
         if (!receipt.get().getUserId().equals(userId)) {
             throw new IllegalArgumentException("Receipt does not belong to user");
+        }
+
+        // Delete associated S3 image if it exists
+        String imageKey = receipt.get().getImageKey();
+        if (imageKey != null && !imageKey.isEmpty()) {
+            try {
+                s3Service.deleteObject(imageKey);
+                System.out.println("Deleted S3 object: " + imageKey);
+            } catch (Exception e) {
+                // Log error but don't fail the deletion
+                System.err.println("Failed to delete S3 object: " + imageKey + " - " + e.getMessage());
+            }
         }
 
         receiptRepository.deleteById(receiptId);
@@ -210,6 +226,17 @@ public class ReceiptService {
             categoryName = category.map(Category::getName).orElse("Unknown");
         }
 
+        // Generate presigned URL if imageKey exists
+        String imageUrl = null;
+        if (receipt.getImageKey() != null && !receipt.getImageKey().isEmpty()) {
+            try {
+                imageUrl = s3Service.createPresignedGetUrl(receipt.getImageKey());
+            } catch (Exception e) {
+                // Log error but don't fail the request
+                System.err.println("Failed to generate presigned URL for key: " + receipt.getImageKey());
+            }
+        }
+
         return new ReceiptResponseDto(
                 receipt.getReceiptId(),
                 receipt.getStoreName(),
@@ -217,7 +244,9 @@ public class ReceiptService {
                 receipt.getCategoryId(),
                 categoryName,
                 receipt.getAmount(),
-                receipt.getCreatedAt()
+                receipt.getCreatedAt(),
+                receipt.getImageKey(),
+                imageUrl
         );
     }
 }
