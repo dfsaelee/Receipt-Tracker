@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Receipt Processing Lambda
+
+Parameters:
+  DatabaseUrl:
+    Type: String
+    Description: Database JDBC URL
+  DatabaseUsername:
+    Type: String
+    Description: Database username
+  DatabasePassword:
+    Type: String
+    Description: Database password
+    NoEcho: true
+
+Resources:
+  ReceiptProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: PersonalCPI.PersonalCPI.lambda.ReceiptLambdaHandler::handleRequest
+      Runtime: java21
+      CodeUri: build/libs/personal-cpi-backend-0.0.1-SNAPSHOT-all.jar
+      MemorySize: 1024
+      Timeout: 60
+      Environment:
+        Variables:
+          SPRING_DATASOURCE_URL: !Ref DatabaseUrl
+          SPRING_DATASOURCE_USERNAME: !Ref DatabaseUsername
+          SPRING_DATASOURCE_PASSWORD: !Ref DatabasePassword
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - textract:AnalyzeExpense
+              Resource: '*'
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: 'arn:aws:s3:::personal-cpi-receipts/*'
+
+Outputs:
+  ReceiptProcessorFunctionArn:
+    Description: ARN of the Receipt Processor Lambda Function
+    Value: !GetAtt ReceiptProcessorFunction.Arn

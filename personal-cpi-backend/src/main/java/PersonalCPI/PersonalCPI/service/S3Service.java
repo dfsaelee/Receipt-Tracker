@@ -2,6 +2,7 @@ package PersonalCPI.PersonalCPI.service;
 
 import PersonalCPI.PersonalCPI.config.S3Buckets;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import org.springframework.web.multipart.MultipartFile;
@@ -18,6 +19,7 @@ public class S3Service {
     private final S3Buckets s3Buckets;
     private final S3Presigner presigner;
 
+    @Autowired
     public S3Service(S3Client s3Client, S3Buckets s3Buckets, S3Presigner presigner) {
         this.s3Client = s3Client;
         this.s3Buckets = s3Buckets;

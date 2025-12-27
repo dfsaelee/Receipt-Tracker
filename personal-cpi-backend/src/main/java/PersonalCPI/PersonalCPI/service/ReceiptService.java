@@ -152,6 +152,33 @@ public class ReceiptService {
         receiptRepository.deleteById(receiptId);
     }
 
+    // Update receipt category
+    @Transactional
+    public Receipt updateReceiptCategory(Long userId, Long receiptId, Long categoryId) {
+        // Validate category ID (1-8)
+        if (categoryId < 1 || categoryId > 8) {
+            throw new IllegalArgumentException("Invalid category ID. Must be between 1 and 8.");
+        }
+        
+        // Find receipt
+        Optional<Receipt> optionalReceipt = receiptRepository.findById(receiptId);
+        if (optionalReceipt.isEmpty()) {
+            throw new IllegalArgumentException("Receipt not found");
+        }
+        
+        Receipt receipt = optionalReceipt.get();
+        
+        // Verify ownership
+        if (!receipt.getUserId().equals(userId)) {
+            throw new IllegalArgumentException("Receipt does not belong to user");
+        }
+        
+        // Update category
+        receipt.setCategoryId(categoryId);
+        
+        return receiptRepository.save(receipt);
+    }
+
     @Transactional(readOnly = true)
     public List<SpendingSummaryDto> getCurrentMonthSpendingByCategory(Long userId) {
         YearMonth currentMonth = YearMonth.now();

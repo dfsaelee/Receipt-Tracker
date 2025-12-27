@@ -20,7 +20,6 @@ public class Receipt {
     @Column(name = "receipt_id")
     private Long receiptId;
 
-
     @NotNull
     @Column(name = "user_id", nullable = false)
     private Long userId;
@@ -31,15 +30,12 @@ public class Receipt {
     @Column(name = "purchase_date")
     private LocalDate purchaseDate = LocalDate.now();
 
-
     @Column(name = "category_id")
     private Long categoryId;
-
 
     @NotNull
     @Column(name = "amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;
-
 
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -48,11 +44,9 @@ public class Receipt {
     private String imageKey;
 
     // Foreign key relationships
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", insertable = false, updatable = false)
     private User user;
-
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", insertable = false, updatable = false)

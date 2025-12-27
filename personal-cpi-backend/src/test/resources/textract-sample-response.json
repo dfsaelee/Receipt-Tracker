@@ -1,0 +1,141 @@
+{
+    "DocumentMetadata": {
+        "Pages": 1
+    },
+    "ExpenseDocuments": [
+        {
+            "ExpenseIndex": 1,
+            "SummaryFields": [
+                {
+                    "Type": {
+                        "Text": "VENDOR_NAME",
+                        "Confidence": 99.5
+                    },
+                    "ValueDetection": {
+                        "Text": "Walmart Supercenter",
+                        "Confidence": 99.5,
+                        "Geometry": {
+                            "BoundingBox": {
+                                "Width": 0.15,
+                                "Height": 0.02,
+                                "Left": 0.35,
+                                "Top": 0.1
+                            }
+                        }
+                    }
+                },
+                {
+                    "Type": {
+                        "Text": "INVOICE_RECEIPT_DATE",
+                        "Confidence": 98.2
+                    },
+                    "ValueDetection": {
+                        "Text": "12/26/2024",
+                        "Confidence": 98.2,
+                        "Geometry": {
+                            "BoundingBox": {
+                                "Width": 0.1,
+                                "Height": 0.015,
+                                "Left": 0.4,
+                                "Top": 0.15
+                            }
+                        }
+                    }
+                },
+                {
+                    "Type": {
+                        "Text": "AMOUNT_DUE",
+                        "Confidence": 99.8
+                    },
+                    "ValueDetection": {
+                        "Text": "$45.99",
+                        "Confidence": 99.8,
+                        "Geometry": {
+                            "BoundingBox": {
+                                "Width": 0.08,
+                                "Height": 0.02,
+                                "Left": 0.7,
+                                "Top": 0.8
+                            }
+                        }
+                    }
+                }
+            ],
+            "LineItemGroups": [
+                {
+                    "LineItemGroupIndex": 1,
+                    "LineItems": [
+                        {
+                            "LineItemExpenseFields": [
+                                {
+                                    "Type": {
+                                        "Text": "ITEM",
+                                        "Confidence": 95.5
+                                    },
+                                    "ValueDetection": {
+                                        "Text": "Milk 2%",
+                                        "Confidence": 95.5
+                                    }
+                                },
+                                {
+                                    "Type": {
+                                        "Text": "QUANTITY",
+                                        "Confidence": 92.0
+                                    },
+                                    "ValueDetection": {
+                                        "Text": "2",
+                                        "Confidence": 92.0
+                                    }
+                                },
+                                {
+                                    "Type": {
+                                        "Text": "PRICE",
+                                        "Confidence": 98.0
+                                    },
+                                    "ValueDetection": {
+                                        "Text": "$3.99",
+                                        "Confidence": 98.0
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "LineItemExpenseFields": [
+                                {
+                                    "Type": {
+                                        "Text": "ITEM",
+                                        "Confidence": 96.2
+                                    },
+                                    "ValueDetection": {
+                                        "Text": "Bread Wheat",
+                                        "Confidence": 96.2
+                                    }
+                                },
+                                {
+                                    "Type": {
+                                        "Text": "QUANTITY",
+                                        "Confidence": 94.5
+                                    },
+                                    "ValueDetection": {
+                                        "Text": "1",
+                                        "Confidence": 94.5
+                                    }
+                                },
+                                {
+                                    "Type": {
+                                        "Text": "PRICE",
+                                        "Confidence": 97.5
+                                    },
+                                    "ValueDetection": {
+                                        "Text": "$2.50",
+                                        "Confidence": 97.5
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

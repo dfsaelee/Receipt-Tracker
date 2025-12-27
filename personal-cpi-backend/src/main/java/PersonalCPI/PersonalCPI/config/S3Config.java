@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.textract.TextractClient;
 
 @Configuration
 public class S3Config {
@@ -25,4 +26,11 @@ public class S3Config {
                 .region(Region.of(awsRegion))
                 .build();
     }
+    @Bean
+    public TextractClient textractClient() {
+        return TextractClient.builder()
+                .region(Region.of(awsRegion))
+                .build();
+    }
+
 }

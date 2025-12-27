@@ -4,6 +4,8 @@ import PersonalCPI.PersonalCPI.dto.MonthlySpendingDto;
 import PersonalCPI.PersonalCPI.dto.ReceiptCreateDto;
 import PersonalCPI.PersonalCPI.dto.ReceiptResponseDto;
 import PersonalCPI.PersonalCPI.dto.SpendingSummaryDto;
+import PersonalCPI.PersonalCPI.dto.UpdateCategoryDto;
+import PersonalCPI.PersonalCPI.model.Receipt;
 import PersonalCPI.PersonalCPI.model.User;
 import PersonalCPI.PersonalCPI.service.JwtService;
 import PersonalCPI.PersonalCPI.service.ReceiptService;
@@ -20,7 +22,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
-import java.net.URL;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +57,7 @@ public class ReceiptController {
 
         return jwtService.extractUserId(jwt); // You'll need to implement this method
     }
+    
     @PostMapping
     public ResponseEntity<?> createReceipt( @RequestBody ReceiptCreateDto receiptDto) {
         try {
@@ -160,6 +162,35 @@ public class ReceiptController {
         }
     }
 
+    // Update receipt category
+    @PatchMapping("/{receiptId}/category")
+    public ResponseEntity<?> updateReceiptCategory(
+            @PathVariable Long receiptId,
+            @RequestBody UpdateCategoryDto updateCategoryDto) {
+        try {
+            Long userId = getAuthenticatedUserId();
+            
+            // Update the category using ReceiptService
+            Receipt updatedReceipt = receiptService.updateReceiptCategory(
+                    userId, 
+                    receiptId, 
+                    updateCategoryDto.getCategoryId()
+            );
+            
+            // Return success response
+            return ResponseEntity.ok(Map.of(
+                    "message", "Category updated successfully",
+                    "receiptId", updatedReceipt.getReceiptId(),
+                    "categoryId", updatedReceipt.getCategoryId()
+            ));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to update category: " + e.getMessage()));
+        }
+    }
+
     /**
      * Get current month spending by category
      */
@@ -206,7 +237,6 @@ public class ReceiptController {
                     .body(Map.of("error", "Failed to retrieve monthly spending summary"));
         }
     }
-
 
     // Get total spending for the user
     @GetMapping("/total")
@@ -309,6 +339,5 @@ public class ReceiptController {
                     .body(Map.of("error", "Failed to generate image URL: " + e.getMessage()));
         }
     }
-
 }
 
