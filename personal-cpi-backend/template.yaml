@@ -1,20 +1,27 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Receipt Processing Lambda
-
-Parameters:
-  DatabaseUrl:
-    Type: String
-    Description: Database JDBC URL
-  DatabaseUsername:
-    Type: String
-    Description: Database username
-  DatabasePassword:
-    Type: String
-    Description: Database password
-    NoEcho: true
+Description: Receipt Processing Lambda with SQS Queue
 
 Resources:
+  # Dead Letter Queue for failed messages
+  ReceiptProcessingDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: receipt-processing-dlq
+      MessageRetentionPeriod: 1209600  # 14 days
+      
+  # Main processing queue
+  ReceiptProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: receipt-processing-queue
+      VisibilityTimeout: 30
+      MessageRetentionPeriod: 1209600  # 14 days
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ReceiptProcessingDLQ.Arn
+        maxReceiveCount: 3  # Move to DLQ after 3 failed attempts
+
+  # Lambda function
   ReceiptProcessorFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -25,9 +32,7 @@ Resources:
       Timeout: 60
       Environment:
         Variables:
-          SPRING_DATASOURCE_URL: !Ref DatabaseUrl
-          SPRING_DATASOURCE_USERNAME: !Ref DatabaseUsername
-          SPRING_DATASOURCE_PASSWORD: !Ref DatabasePassword
+          RECEIPT_QUEUE_URL: !Ref ReceiptProcessingQueue
       Policies:
         - Statement:
             - Effect: Allow
@@ -39,8 +44,29 @@ Resources:
               Action:
                 - s3:GetObject
               Resource: 'arn:aws:s3:::personal-cpi-receipts/*'
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt ReceiptProcessingQueue.Arn
 
 Outputs:
   ReceiptProcessorFunctionArn:
     Description: ARN of the Receipt Processor Lambda Function
     Value: !GetAtt ReceiptProcessorFunction.Arn
+    
+  ReceiptQueueUrl:
+    Description: URL of the Receipt Processing Queue
+    Value: !Ref ReceiptProcessingQueue
+    Export:
+      Name: ReceiptProcessingQueueUrl
+      
+  ReceiptQueueArn:
+    Description: ARN of the Receipt Processing Queue
+    Value: !GetAtt ReceiptProcessingQueue.Arn
+    Export:
+      Name: ReceiptProcessingQueueArn
+      
+  DLQUrl:
+    Description: URL of the Dead Letter Queue
+    Value: !Ref ReceiptProcessingDLQ

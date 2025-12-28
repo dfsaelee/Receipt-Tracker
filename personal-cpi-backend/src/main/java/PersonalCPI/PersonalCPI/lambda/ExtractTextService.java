@@ -36,6 +36,7 @@ public class ExtractTextService {
     private final TextractClient textractClient;
     private final ReceiptRepository receiptRepository;
     private final ReceiptItemRepository receiptItemRepository;
+    
     private final double highConfidence;
     private final double mediumConfidence;
     private static final Long DEFAULT_CATEGORY_ID = 8L; // "Other Goods and Services" as default 
@@ -100,11 +101,6 @@ public class ExtractTextService {
 
             // Map to domain models
             ReceiptWithItems receiptWithItems = mapToReceiptWithItems(extractedReceipt, objectKey);
-            
-            // TODO: Add database save later using one of these approaches:
-            // Option 1: Direct JDBC connection (simplest)
-            // Option 2: Supabase REST API (no JPA needed)
-            // Option 3: Spring Cloud Function (full Spring support)
             
             logger.info("Extracted receipt - Store: {}, Amount: {}, Items: {}",
                 receiptWithItems.getReceipt().getStoreName(),
@@ -187,6 +183,8 @@ public class ExtractTextService {
         // Parse price
         BigDecimal price = ReceiptDataParser.parseAmount(extractedItem.getPrice())
             .orElse(BigDecimal.ZERO);
+        logger.info("Parsed price for '{}': raw='{}' -> parsed={}", 
+            extractedItem.getName(), extractedItem.getPrice(), price);
         item.setUnitPrice(price);
 
         // Calculate total price
@@ -281,7 +279,11 @@ public class ExtractTextService {
                         switch (type) {
                             case "ITEM" -> item.setName(value);
                             case "QUANTITY" -> item.setQuantity(value);
-                            case "PRICE" -> item.setPrice(value);
+                            case "PRICE" -> {
+                                logger.info("Raw Textract PRICE value: '{}' (confidence: {}%)", 
+                                    value, String.format("%.2f", confidence));
+                                item.setPrice(value);
+                            }
                         }
                     }
                 }

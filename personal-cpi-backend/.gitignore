@@ -39,4 +39,20 @@ out/
 ### VS Code ###
 .vscode/
 
-### Docker
+# Add to personal-cpi-backend/.gitignore
+@"
+### AWS SAM
+.aws-sam/
+samconfig.toml
+test-event.json
+s3-notification.json
+env.json
+deploy.ps1
+### Test files
+*Test.jpeg
+*Test.jpg
+macdonaldTest.jpg
+walmartTest.jpeg
+### Build artifacts
+build/
+.gradle/
