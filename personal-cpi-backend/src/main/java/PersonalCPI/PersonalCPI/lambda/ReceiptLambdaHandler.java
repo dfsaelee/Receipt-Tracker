@@ -57,6 +57,8 @@ public class ReceiptLambdaHandler implements RequestHandler<S3Event, Boolean> {
         // JSON mapper for SQS messages
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
+        // Configure to use BigDecimal for floating point numbers
+        this.objectMapper.enable(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
 
         System.out.println("ReceiptLambdaHandler initialized successfully!");
     }

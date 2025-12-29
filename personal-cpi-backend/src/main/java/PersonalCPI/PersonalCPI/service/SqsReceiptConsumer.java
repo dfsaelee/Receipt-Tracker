@@ -39,6 +39,8 @@ public class SqsReceiptConsumer {
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
         this.objectMapper = new ObjectMapper();
+        // Configure to use BigDecimal for floating point numbers to preserve precision
+        this.objectMapper.enable(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
     }
     
     /**

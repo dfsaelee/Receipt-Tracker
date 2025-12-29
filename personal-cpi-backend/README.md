@@ -140,6 +140,16 @@ PATCH /api/receipts/{id}/category
 }
 ```
 
+### MonthlySpending
+```typescript
+{
+  year: number;
+  month: number;              // 1-12
+  monthName: string;          // "January", "February", etc.
+  totalAmount: number;
+}
+```
+
 ## Error Responses
 
 | Status | Response |

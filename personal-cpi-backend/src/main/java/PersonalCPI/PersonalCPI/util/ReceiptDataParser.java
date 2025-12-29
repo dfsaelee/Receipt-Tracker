@@ -83,7 +83,28 @@ public class ReceiptDataParser {
                 cleaned = cleaned.replace(",", "");
             }
 
-            return Optional.of(new BigDecimal(cleaned));
+            BigDecimal result = new BigDecimal(cleaned);
+            
+            // HEURISTIC: If the number has no decimal point and is >= 100, 
+            // it might be a price where OCR missed the decimal point (e.g., "5174" should be "51.74")
+            // This assumes prices are typically under $100 and have cents
+            if (!cleaned.contains(".") && result.compareTo(new BigDecimal("100")) >= 0) {
+                // Check if it looks like cents were concatenated (e.g., 5174 -> 51.74)
+                String numStr = result.toBigInteger().toString();
+                if (numStr.length() >= 3) {
+                    // Insert decimal point before last 2 digits
+                    String dollars = numStr.substring(0, numStr.length() - 2);
+                    String cents = numStr.substring(numStr.length() - 2);
+                    String corrected = dollars + "." + cents;
+                    BigDecimal correctedResult = new BigDecimal(corrected);
+                    
+                    logger.info("Detected missing decimal point: '{}' -> '{}' (original: '{}')", 
+                        cleaned, corrected, amountString);
+                    return Optional.of(correctedResult);
+                }
+            }
+
+            return Optional.of(result);
         } catch (NumberFormatException e) {
             logger.warn("Could not parse amount: '{}'", amountString, e);
             return Optional.empty();

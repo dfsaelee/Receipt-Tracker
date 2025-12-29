@@ -17,6 +17,7 @@ public class MonthlySpendingDto {
     public MonthlySpendingDto(int year, int month, BigDecimal totalAmount) {
         this.year = year;
         this.month = month;
+        this.monthName = monthNameFromNumber(month);
         this.totalAmount = totalAmount;
     }
 
