@@ -7,7 +7,9 @@ import PersonalCPI.PersonalCPI.dto.SpendingSummaryDto;
 import PersonalCPI.PersonalCPI.model.Category;
 import PersonalCPI.PersonalCPI.model.Receipt;
 import PersonalCPI.PersonalCPI.repository.CategoryRepository;
+import PersonalCPI.PersonalCPI.repository.ReceiptItemRepository;
 import PersonalCPI.PersonalCPI.repository.ReceiptRepository;
+import PersonalCPI.PersonalCPI.service.S3Service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +40,12 @@ class ReceiptServiceTest {
     @Mock
     private CategoryRepository categoryRepository;
 
+    @Mock
+    private S3Service s3Service;
+
+    @Mock
+    private ReceiptItemRepository receiptItemRepository;
+
     @InjectMocks
     private ReceiptService receiptService;
 
@@ -59,6 +67,7 @@ class ReceiptServiceTest {
         dto.setAmount(new BigDecimal("42.37"));
 
         when(categoryRepository.findById(groceries.getCategoryId())).thenReturn(Optional.of(groceries));
+        when(receiptItemRepository.findByReceiptId(anyLong())).thenReturn(Collections.emptyList());
         when(receiptRepository.save(any(Receipt.class))).thenAnswer(invocation -> {
             Receipt receipt = invocation.getArgument(0);
             ReflectionTestUtils.setField(receipt, "receiptId", 99L);

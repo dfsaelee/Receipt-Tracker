@@ -5,15 +5,10 @@ import PersonalCPI.PersonalCPI.dto.ExtractedReceiptItem;
 import PersonalCPI.PersonalCPI.dto.ReceiptWithItems;
 import PersonalCPI.PersonalCPI.model.Receipt;
 import PersonalCPI.PersonalCPI.model.ReceiptItem;
-import PersonalCPI.PersonalCPI.repository.ReceiptItemRepository;
-import PersonalCPI.PersonalCPI.repository.ReceiptRepository;
 import PersonalCPI.PersonalCPI.util.ReceiptDataParser;
 import PersonalCPI.PersonalCPI.util.S3KeyParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.services.textract.TextractClient;
 import software.amazon.awssdk.services.textract.model.*;
 
@@ -29,42 +24,26 @@ import java.util.Map;
  * Service for extracting receipt data from images using AWS Textract
  * and persisting to database.
  */
-@Service
+
 public class ExtractTextService {
     private static final Logger logger = LoggerFactory.getLogger(ExtractTextService.class);
     
     private final TextractClient textractClient;
-    private final ReceiptRepository receiptRepository;
-    private final ReceiptItemRepository receiptItemRepository;
-    
     private final double highConfidence;
     private final double mediumConfidence;
-    private static final Long DEFAULT_CATEGORY_ID = 8L; // "Other Goods and Services" as default 
+    private static final Long DEFAULT_CATEGORY_ID = 8L; // "Other Goods and Services" as default
 
-    @Autowired
-    public ExtractTextService(TextractClient textractClient, 
-                             ReceiptRepository receiptRepository,
-                             ReceiptItemRepository receiptItemRepository) {
-        this(textractClient, receiptRepository, receiptItemRepository, 90.0, 75.0);
-    }
-
-    public ExtractTextService(TextractClient textractClient,
-                             ReceiptRepository receiptRepository,
-                             ReceiptItemRepository receiptItemRepository,
-                             double highConfidence, 
-                             double mediumConfidence) {
+    // Constructor for ExtractTextService with dependency injection.
+    public ExtractTextService(TextractClient textractClient) {
         this.textractClient = textractClient;
-        this.receiptRepository = receiptRepository;
-        this.receiptItemRepository = receiptItemRepository;
-        this.highConfidence = highConfidence;
-        this.mediumConfidence = mediumConfidence;
+        this.highConfidence = 90.0;
+        this.mediumConfidence = 75.0;
     }
 
     /**
      * Extracts receipt data from S3 image, processes it, and saves to database.
      */
-    @Transactional
-    public ReceiptWithItems extractAndSaveReceipt(String bucketName, String objectKey) {
+    public ReceiptWithItems extractReceiptData(String bucketName, String objectKey) {
         logger.info("Starting receipt extraction for s3://{}/{}", bucketName, objectKey);
 
         try {
@@ -186,10 +165,6 @@ public class ExtractTextService {
         logger.info("Parsed price for '{}': raw='{}' -> parsed={}", 
             extractedItem.getName(), extractedItem.getPrice(), price);
         item.setUnitPrice(price);
-
-        // Calculate total price
-        BigDecimal totalPrice = price.multiply(new BigDecimal(quantity));
-        item.setTotalPrice(totalPrice);
 
         return item;
     }

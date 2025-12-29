@@ -3,8 +3,6 @@ package PersonalCPI.PersonalCPI.lambda;
 import PersonalCPI.PersonalCPI.dto.ReceiptWithItems;
 import PersonalCPI.PersonalCPI.model.Receipt;
 import PersonalCPI.PersonalCPI.model.ReceiptItem;
-import PersonalCPI.PersonalCPI.repository.ReceiptItemRepository;
-import PersonalCPI.PersonalCPI.repository.ReceiptRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,21 +25,15 @@ class ExtractTextServiceTest {
     @Mock
     private TextractClient textractClient;
 
-    @Mock
-    private ReceiptRepository receiptRepository;
-
-    @Mock
-    private ReceiptItemRepository receiptItemRepository;
-
     private ExtractTextService extractTextService;
 
     @BeforeEach
     void setUp() {
-        extractTextService = new ExtractTextService(textractClient, receiptRepository, receiptItemRepository);
+        extractTextService = new ExtractTextService(textractClient);
     }
 
     @Test
-    void extractAndSaveReceipt_withValidResponse_savesReceipt() {
+    void extractReceipt_withValidResponse_extractsReceiptData() {
         // Arrange
         String bucketName = "test-bucket";
         String objectKey = "receipts/123/receipt.jpg";
@@ -49,25 +41,20 @@ class ExtractTextServiceTest {
         AnalyzeExpenseResponse mockResponse = createSimpleMockResponse("Walmart", "2024-12-26", "45.99");
         when(textractClient.analyzeExpense(any(AnalyzeExpenseRequest.class))).thenReturn(mockResponse);
 
-        Receipt savedReceipt = new Receipt();
-        savedReceipt.setReceiptId(1L);
-        savedReceipt.setUserId(123L);
-        when(receiptRepository.save(any(Receipt.class))).thenReturn(savedReceipt);
-        // Don't stub receiptItemRepository.saveAll() - it won't be called since there are no items
-
         // Act
-        ReceiptWithItems result = extractTextService.extractAndSaveReceipt(bucketName, objectKey);
+        ReceiptWithItems result = extractTextService.extractReceiptData(bucketName, objectKey);
 
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.getReceipt()).isNotNull();
-        assertThat(result.getReceipt().getReceiptId()).isEqualTo(1L);
+        assertThat(result.getReceipt().getStoreName()).isEqualTo("Walmart");
+        assertThat(result.getReceipt().getUserId()).isEqualTo(123L);
+        assertThat(result.getReceipt().getAmount()).isEqualByComparingTo("45.99");
         verify(textractClient).analyzeExpense(any(AnalyzeExpenseRequest.class));
-        verify(receiptRepository).save(any(Receipt.class));
     }
 
     @Test
-    void extractAndSaveReceipt_withNoExpenseDocuments_throwsException() {
+    void extractReceipt_Data_withNoExpenseDocuments_throwsException() {
         // Arrange
         String bucketName = "test-bucket";
         String objectKey = "receipts/123/receipt.jpg";
@@ -79,15 +66,13 @@ class ExtractTextServiceTest {
         when(textractClient.analyzeExpense(any(AnalyzeExpenseRequest.class))).thenReturn(emptyResponse);
 
         // Act & Assert
-        assertThatThrownBy(() -> extractTextService.extractAndSaveReceipt(bucketName, objectKey))
+        assertThatThrownBy(() -> extractTextService.extractReceiptData(bucketName, objectKey))
             .isInstanceOf(RuntimeException.class)
             .hasMessageContaining("No expense documents found");
-
-        verify(receiptRepository, never()).save(any());
     }
 
     @Test
-    void extractAndSaveReceipt_withTextractException_throwsRuntimeException() {
+    void extractReceipt_Data_withTextractException_throwsRuntimeException() {
         // Arrange
         String bucketName = "test-bucket";
         String objectKey = "receipts/123/receipt.jpg";
@@ -96,15 +81,13 @@ class ExtractTextServiceTest {
             .thenThrow(TextractException.builder().message("Textract error").build());
 
         // Act & Assert
-        assertThatThrownBy(() -> extractTextService.extractAndSaveReceipt(bucketName, objectKey))
+        assertThatThrownBy(() -> extractTextService.extractReceiptData(bucketName, objectKey))
             .isInstanceOf(RuntimeException.class)
             .hasMessageContaining("Textract");
-
-        verify(receiptRepository, never()).save(any());
     }
 
     @Test
-    void extractAndSaveReceipt_withInvalidS3Key_throwsException() {
+    void extractReceipt_Data_withInvalidS3Key_throwsException() {
         // Arrange
         String bucketName = "test-bucket";
         String objectKey = "invalid/key/format.jpg"; // This doesn't match receipts/{userId}/
@@ -114,17 +97,16 @@ class ExtractTextServiceTest {
 
         // Act & Assert
         // The IllegalArgumentException is wrapped in RuntimeException by the catch block
-        assertThatThrownBy(() -> extractTextService.extractAndSaveReceipt(bucketName, objectKey))
+        assertThatThrownBy(() -> extractTextService.extractReceiptData(bucketName, objectKey))
             .isInstanceOf(RuntimeException.class)
             .hasMessageContaining("Invalid S3 key");
 
-        // Textract IS called, but save is never reached
+        // Textract IS called, but extraction fails during userId parsing
         verify(textractClient).analyzeExpense(any(AnalyzeExpenseRequest.class));
-        verify(receiptRepository, never()).save(any());
     }
 
     @Test
-    void extractAndSaveReceipt_setsDefaultCategoryId() {
+    void extractReceipt_Data_setsDefaultCategoryId() {
         // Arrange
         String bucketName = "test-bucket";
         String objectKey = "receipts/789/receipt.jpg";
@@ -132,23 +114,15 @@ class ExtractTextServiceTest {
         AnalyzeExpenseResponse mockResponse = createSimpleMockResponse("Store", "2024-12-26", "25.00");
         when(textractClient.analyzeExpense(any(AnalyzeExpenseRequest.class))).thenReturn(mockResponse);
 
-        Receipt savedReceipt = new Receipt();
-        savedReceipt.setReceiptId(3L);
-        savedReceipt.setUserId(789L);
-        savedReceipt.setCategoryId(8L);
-        when(receiptRepository.save(any(Receipt.class))).thenReturn(savedReceipt);
-        // Don't stub receiptItemRepository - not called without line items
-
         // Act
-        ReceiptWithItems result = extractTextService.extractAndSaveReceipt(bucketName, objectKey);
+        ReceiptWithItems result = extractTextService.extractReceiptData(bucketName, objectKey);
 
         // Assert
-        verify(receiptRepository).save(any(Receipt.class));
         assertThat(result.getReceipt().getCategoryId()).isEqualTo(8L);
     }
 
     @Test
-    void extractAndSaveReceipt_extractsUserIdFromKey() {
+    void extractReceipt_Data_extractsUserIdFromKey() {
         // Arrange
         String bucketName = "test-bucket";
         String objectKey = "receipts/456/receipt.jpg";
@@ -156,23 +130,16 @@ class ExtractTextServiceTest {
         AnalyzeExpenseResponse mockResponse = createSimpleMockResponse("Store", "2024-12-26", "10.00");
         when(textractClient.analyzeExpense(any(AnalyzeExpenseRequest.class))).thenReturn(mockResponse);
 
-        Receipt savedReceipt = new Receipt();
-        savedReceipt.setReceiptId(1L);
-        savedReceipt.setUserId(456L);
-        when(receiptRepository.save(any(Receipt.class))).thenReturn(savedReceipt);
-        // Don't stub receiptItemRepository - not called without line items
-
         // Act
-        ReceiptWithItems result = extractTextService.extractAndSaveReceipt(bucketName, objectKey);
+        ReceiptWithItems result = extractTextService.extractReceiptData(bucketName, objectKey);
 
         // Assert
         assertThat(result.getReceipt().getUserId()).isEqualTo(456L);
         verify(textractClient).analyzeExpense(any(AnalyzeExpenseRequest.class));
-        verify(receiptRepository).save(any(Receipt.class));
     }
 
     @Test
-    void extractAndSaveReceipt_withLineItems_savesItemsCorrectly() {
+    void extractReceipt_Data_withLineItems_extractsItemsCorrectly() {
         // Arrange
         String bucketName = "test-bucket";
         String objectKey = "receipts/999/receipt.jpg";
@@ -180,23 +147,14 @@ class ExtractTextServiceTest {
         AnalyzeExpenseResponse mockResponse = createMockResponseWithLineItems();
         when(textractClient.analyzeExpense(any(AnalyzeExpenseRequest.class))).thenReturn(mockResponse);
 
-        Receipt savedReceipt = new Receipt();
-        savedReceipt.setReceiptId(5L);
-        savedReceipt.setUserId(999L);
-        when(receiptRepository.save(any(Receipt.class))).thenReturn(savedReceipt);
-        
-        List<ReceiptItem> savedItems = new ArrayList<>();
-        ReceiptItem item = new ReceiptItem();
-        item.setItemName("Milk");
-        savedItems.add(item);
-        when(receiptItemRepository.saveAll(any())).thenReturn(savedItems);
-
         // Act
-        ReceiptWithItems result = extractTextService.extractAndSaveReceipt(bucketName, objectKey);
+        ReceiptWithItems result = extractTextService.extractReceiptData(bucketName, objectKey);
 
         // Assert
         assertThat(result.getItems()).isNotEmpty();
-        verify(receiptItemRepository).saveAll(any());
+        assertThat(result.getItems()).hasSize(1);
+        assertThat(result.getItems().get(0).getItemName()).isEqualTo("Milk");
+        assertThat(result.getItems().get(0).getQuantity()).isEqualTo(2);
     }
 
     // Helper to create mock Textract response

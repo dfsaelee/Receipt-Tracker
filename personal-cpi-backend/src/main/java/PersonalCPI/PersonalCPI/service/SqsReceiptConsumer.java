@@ -42,10 +42,10 @@ public class SqsReceiptConsumer {
     }
     
     /**
-     * Polls SQS queue every 15 seconds for new receipt messages.
+     * Polls SQS queue every 10 seconds for new receipt messages.
      * Processes up to 10 messages per poll.
      */
-    @Scheduled(fixedDelay = 15000)  // Poll every 15 seconds
+    @Scheduled(fixedDelay = 10000)  // Poll every 10 seconds
     public void processQueue() {
         try {
             // Receive messages from queue

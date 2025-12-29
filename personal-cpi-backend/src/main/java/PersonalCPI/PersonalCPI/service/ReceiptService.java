@@ -2,11 +2,14 @@ package PersonalCPI.PersonalCPI.service;
 
 import PersonalCPI.PersonalCPI.dto.MonthlySpendingDto;
 import PersonalCPI.PersonalCPI.dto.ReceiptCreateDto;
+import PersonalCPI.PersonalCPI.dto.ReceiptItemDto;
 import PersonalCPI.PersonalCPI.dto.ReceiptResponseDto;
 import PersonalCPI.PersonalCPI.dto.SpendingSummaryDto;
 import PersonalCPI.PersonalCPI.model.Category;
 import PersonalCPI.PersonalCPI.model.Receipt;
+import PersonalCPI.PersonalCPI.model.ReceiptItem;
 import PersonalCPI.PersonalCPI.repository.CategoryRepository;
+import PersonalCPI.PersonalCPI.repository.ReceiptItemRepository;
 import PersonalCPI.PersonalCPI.repository.ReceiptRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cglib.core.Local;
@@ -26,16 +29,19 @@ public class ReceiptService {
     private final ReceiptRepository receiptRepository;
     private final CategoryRepository categoryRepository;
     private final S3Service s3Service;
+    private final ReceiptItemRepository receiptItemRepository;
 
     @Autowired
-    public ReceiptService(ReceiptRepository receiptRepository, CategoryRepository categoryRepository, S3Service s3Service) {
+    public ReceiptService(ReceiptRepository receiptRepository, CategoryRepository categoryRepository, S3Service s3Service, ReceiptItemRepository receiptItemRepository) {
         this.receiptRepository = receiptRepository;
         this.categoryRepository = categoryRepository;
         this.s3Service = s3Service;
+        this.receiptItemRepository = receiptItemRepository;
     }
 
     // Crud
     // Create a new Receipt for authenticated user
+    @Transactional
     public ReceiptResponseDto createReceipt(Long userId, ReceiptCreateDto createDto) {
         if (createDto.getCategoryId() != null) {
             Optional<Category> category = categoryRepository.findById(createDto.getCategoryId());
@@ -53,6 +59,22 @@ public class ReceiptService {
         );
 
         Receipt savedReceipt = receiptRepository.save(receipt);
+        
+        // Create receipt items if provided
+        if (createDto.getItems() != null && !createDto.getItems().isEmpty()) {
+            List<ReceiptItem> items = createDto.getItems().stream()
+                    .map(itemDto -> {
+                        ReceiptItem item = new ReceiptItem();
+                        item.setReceiptId(savedReceipt.getReceiptId());
+                        item.setItemName(itemDto.getItemName());
+                        item.setQuantity(itemDto.getQuantity());
+                        item.setUnitPrice(itemDto.getUnitPrice());
+                        return item;
+                    })
+                    .collect(Collectors.toList());
+            receiptItemRepository.saveAll(items);
+        }
+        
         return convertToResponseDto(savedReceipt);
     }
 
@@ -95,6 +117,7 @@ public class ReceiptService {
         return convertToResponseDto(receipt.get());
     }
 
+    @Transactional
     public ReceiptResponseDto updateReceipt(Long userId, Long receiptId, ReceiptCreateDto updateDto) {
         Optional<Receipt> existingReceipt = receiptRepository.findById(receiptId);
 
@@ -123,9 +146,32 @@ public class ReceiptService {
         receipt.setImageKey(updateDto.getImageKey());
 
         Receipt savedReceipt = receiptRepository.save(receipt);
+        
+        // Update receipt items if provided
+        if (updateDto.getItems() != null) {
+            // Delete existing items
+            receiptItemRepository.deleteByReceiptId(receiptId);
+            
+            // Create new items
+            if (!updateDto.getItems().isEmpty()) {
+                List<ReceiptItem> items = updateDto.getItems().stream()
+                        .map(itemDto -> {
+                            ReceiptItem item = new ReceiptItem();
+                            item.setReceiptId(receiptId);
+                            item.setItemName(itemDto.getItemName());
+                            item.setQuantity(itemDto.getQuantity());
+                            item.setUnitPrice(itemDto.getUnitPrice());
+                            return item;
+                        })
+                        .collect(Collectors.toList());
+                receiptItemRepository.saveAll(items);
+            }
+        }
+        
         return convertToResponseDto(savedReceipt);
     }
 
+    @Transactional
     public void deleteReceipt(Long userId, Long receiptId) {
         Optional<Receipt> receipt = receiptRepository.findById(receiptId);
 
@@ -148,6 +194,9 @@ public class ReceiptService {
                 System.err.println("Failed to delete S3 object: " + imageKey + " - " + e.getMessage());
             }
         }
+
+        // Delete associated receipt items
+        receiptItemRepository.deleteByReceiptId(receiptId);
 
         receiptRepository.deleteById(receiptId);
     }
@@ -264,6 +313,18 @@ public class ReceiptService {
             }
         }
 
+        // Get receipt items
+        List<ReceiptItemDto> items = receiptItemRepository.findByReceiptId(receipt.getReceiptId())
+                .stream()
+                .map(item -> new ReceiptItemDto(
+                        item.getReceiptItemId(),
+                        item.getReceiptId(),
+                        item.getItemName(),
+                        item.getQuantity(),
+                        item.getUnitPrice()
+                ))
+                .collect(Collectors.toList());
+
         return new ReceiptResponseDto(
                 receipt.getReceiptId(),
                 receipt.getStoreName(),
@@ -273,7 +334,8 @@ public class ReceiptService {
                 receipt.getAmount(),
                 receipt.getCreatedAt(),
                 receipt.getImageKey(),
-                imageUrl
+                imageUrl,
+                items
         );
     }
 }

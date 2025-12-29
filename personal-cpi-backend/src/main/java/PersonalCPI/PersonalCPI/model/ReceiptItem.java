@@ -30,9 +30,6 @@ public class ReceiptItem {
     @Column(name = "unit_price", precision = 10, scale = 2)
     private BigDecimal unitPrice;
 
-    @Column(name = "total_price", precision = 10, scale = 2)
-    private BigDecimal totalPrice;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "receipt_id", insertable = false, updatable = false)
     private Receipt receipt;

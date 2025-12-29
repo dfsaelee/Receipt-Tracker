@@ -164,6 +164,48 @@ class ReceiptDataParserTest {
         assertThat(result.get()).isEqualByComparingTo("100");
     }
 
+    // European Format Tests (comma as decimal separator)
+    @Test
+    void parseAmount_withEuropeanFormat_parsesCorrectly() {
+        Optional<BigDecimal> result = ReceiptDataParser.parseAmount("51,74");
+        
+        assertThat(result).isPresent();
+        assertThat(result.get()).isEqualByComparingTo("51.74");
+    }
+
+    @Test
+    void parseAmount_withEuropeanFormatSmallAmount_parsesCorrectly() {
+        Optional<BigDecimal> result = ReceiptDataParser.parseAmount("2,50");
+        
+        assertThat(result).isPresent();
+        assertThat(result.get()).isEqualByComparingTo("2.50");
+    }
+
+    @Test
+    void parseAmount_withEuropeanFormatAndThousands_parsesCorrectly() {
+        Optional<BigDecimal> result = ReceiptDataParser.parseAmount("1.234,56");
+        
+        assertThat(result).isPresent();
+        assertThat(result.get()).isEqualByComparingTo("1234.56");
+    }
+
+    @Test
+    void parseAmount_withEuropeanFormatLargeAmount_parsesCorrectly() {
+        Optional<BigDecimal> result = ReceiptDataParser.parseAmount("12.345.678,90");
+        
+        assertThat(result).isPresent();
+        assertThat(result.get()).isEqualByComparingTo("12345678.90");
+    }
+
+    @Test
+    void parseAmount_withUSFormatConfirmation_parsesCorrectly() {
+        // Ensure US format still works after European format support
+        Optional<BigDecimal> result = ReceiptDataParser.parseAmount("1,234.56");
+        
+        assertThat(result).isPresent();
+        assertThat(result.get()).isEqualByComparingTo("1234.56");
+    }
+
     // Quantity Parsing Tests
     @Test
     void parseQuantity_withSimpleNumber_returnsInteger() {

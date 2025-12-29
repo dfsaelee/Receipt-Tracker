@@ -51,7 +51,7 @@ public class ReceiptDataParser {
     }
 
     /**
-     * Parses an amount string to BigDecimal, removing currency symbols and commas.
+     * Parses an amount string to BigDecimal, handling both US (123.45) and European (123,45) formats.
      */
     public static Optional<BigDecimal> parseAmount(String amountString) {
         if (amountString == null || amountString.trim().isEmpty()) {
@@ -59,15 +59,31 @@ public class ReceiptDataParser {
         }
 
         try {
-            // Remove currency symbols, commas, and whitespace
-            String cleanAmount = amountString.trim()
-                .replaceAll("[^0-9.]", "");
+            String cleaned = amountString.trim();
             
-            if (cleanAmount.isEmpty()) {
+            // Remove currency symbols and whitespace, but keep digits, commas, and periods
+            cleaned = cleaned.replaceAll("[^0-9.,]", "");
+            
+            if (cleaned.isEmpty()) {
                 return Optional.empty();
             }
 
-            return Optional.of(new BigDecimal(cleanAmount));
+            // Determine decimal separator based on the last occurrence of comma or period
+            // European format: 1.234,56 or 51,74
+            // US format: 1,234.56 or 51.74
+            int lastComma = cleaned.lastIndexOf(',');
+            int lastPeriod = cleaned.lastIndexOf('.');
+            
+            // If there's a comma after the last period, or only a comma exists, treat comma as decimal
+            if (lastComma > lastPeriod) {
+                // European format: replace comma with period, remove other periods
+                cleaned = cleaned.replace(".", "").replace(",", ".");
+            } else {
+                // US format: just remove commas (thousands separators)
+                cleaned = cleaned.replace(",", "");
+            }
+
+            return Optional.of(new BigDecimal(cleaned));
         } catch (NumberFormatException e) {
             logger.warn("Could not parse amount: '{}'", amountString, e);
             return Optional.empty();
