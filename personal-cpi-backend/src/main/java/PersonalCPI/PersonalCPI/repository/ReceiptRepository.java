@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ReceiptRepository extends JpaRepository<Receipt, Long> {
@@ -67,4 +68,7 @@ public interface ReceiptRepository extends JpaRepository<Receipt, Long> {
 
     // Find recent receipts (last N receipts)
     List<Receipt> findTop10ByUserIdOrderByCreatedAtDesc(Long userId);
+    
+    // Find earliest receipt for a user
+    Optional<Receipt> findTop1ByUserIdOrderByPurchaseDateAsc(Long userId);
 }

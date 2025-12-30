@@ -86,12 +86,11 @@ public class ReceiptDataParser {
             BigDecimal result = new BigDecimal(cleaned);
             
             // HEURISTIC: If the number has no decimal point and is >= 100, 
-            // it might be a price where OCR missed the decimal point (e.g., "5174" should be "51.74")
-            // This assumes prices are typically under $100 and have cents
             if (!cleaned.contains(".") && result.compareTo(new BigDecimal("100")) >= 0) {
-                // Check if it looks like cents were concatenated (e.g., 5174 -> 51.74)
                 String numStr = result.toBigInteger().toString();
-                if (numStr.length() >= 3) {
+                
+                // Check if last two digits are NOT "00" (to avoid converting 100 -> 1.00)
+                if (numStr.length() >= 3 && !numStr.endsWith("00")) {
                     // Insert decimal point before last 2 digits
                     String dollars = numStr.substring(0, numStr.length() - 2);
                     String cents = numStr.substring(numStr.length() - 2);
