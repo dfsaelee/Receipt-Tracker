@@ -36,7 +36,9 @@ public class SecurityConfiguration {
                 .csrf(csrf ->csrf.disable()) // disable csrf protection
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/auth/**").permitAll() // authorize anything with auth header else not
+                        .requestMatchers("/api/admin/**").authenticated() // Admin endpoints require authentication
                         .requestMatchers("/api/receipts/**").authenticated() // permitAll
+                        .requestMatchers("/api/cpi/**").authenticated() // CPI endpoints require authentication
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session ->
