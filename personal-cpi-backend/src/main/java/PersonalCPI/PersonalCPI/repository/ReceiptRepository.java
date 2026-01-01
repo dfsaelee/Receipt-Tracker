@@ -1,6 +1,8 @@
 package PersonalCPI.PersonalCPI.repository;
 
 import PersonalCPI.PersonalCPI.model.Receipt;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -71,4 +73,57 @@ public interface ReceiptRepository extends JpaRepository<Receipt, Long> {
     
     // Find earliest receipt for a user
     Optional<Receipt> findTop1ByUserIdOrderByPurchaseDateAsc(Long userId);
+
+    // Optimized queries using JOIN FETCH to prevent N+1 problem
+    /**
+     * Fetches receipts with items in a single query to avoid the N+1 problem.
+     */
+    @Query("SELECT DISTINCT r FROM Receipt r " +
+           "LEFT JOIN FETCH r.items " +
+           "WHERE r.userId = :userId " +
+           "ORDER BY r.purchaseDate DESC")
+    List<Receipt> findByUserIdWithItems(@Param("userId") Long userId);
+
+    /**
+     * Fetch receipts by IDs with associated items.
+     * Used for efficient pagination with related entities.
+     */
+    @Query("SELECT DISTINCT r FROM Receipt r " +
+           "LEFT JOIN FETCH r.items " +
+           "WHERE r.receiptId IN :receiptIds")
+    List<Receipt> findByReceiptIdInWithItems(@Param("receiptIds") List<Long> receiptIds);
+
+    /**
+     * Paginated version with JOIN FETCH.
+     * Note: We use a subquery approach to avoid pagination issues with JOIN FETCH.
+     */
+    @Query("SELECT r FROM Receipt r " +
+           "WHERE r.userId = :userId " +
+           "ORDER BY r.purchaseDate DESC")
+    Page<Receipt> findByUserIdOrderByPurchaseDateDesc(Long userId, Pageable pageable);
+
+    /**
+     * Paginated date range query
+     */
+    @Query("SELECT r FROM Receipt r " +
+           "WHERE r.userId = :userId " +
+           "AND r.purchaseDate BETWEEN :startDate AND :endDate " +
+           "ORDER BY r.purchaseDate DESC")
+    Page<Receipt> findByUserIdAndPurchaseDateBetween(
+            @Param("userId") Long userId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            Pageable pageable);
+
+    /**
+     * Paginated category query
+     */
+    @Query("SELECT r FROM Receipt r " +
+           "WHERE r.userId = :userId " +
+           "AND r.categoryId = :categoryId " +
+           "ORDER BY r.purchaseDate DESC")
+    Page<Receipt> findByUserIdAndCategoryId(
+            @Param("userId") Long userId,
+            @Param("categoryId") Long categoryId,
+            Pageable pageable);
 }

@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 
 /**
  * Entity representing monthly personal CPI calculations for a user.
- * Pre-calculated data stored for performance optimization.
+ * Pre-calculated data stored for improved query performance.
  */
 @Entity
 @Table(name = "personal_cpi_monthly", 

@@ -3,6 +3,7 @@ package PersonalCPI.PersonalCPI.service;
 import PersonalCPI.PersonalCPI.config.S3Buckets;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import org.springframework.web.multipart.MultipartFile;
@@ -35,7 +36,13 @@ public class S3Service {
         s3Client.putObject(objectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
     }
 
-    // return presigned urls, aka our get object
+    /**
+     * Generate presigned URL for S3 object.
+     * 
+     * @param key S3 object key
+     * @return Presigned URL valid for 10 minutes
+     */
+    @Cacheable(value = "presignedUrls", key = "#key")
     public String createPresignedGetUrl(String key) {
         try {
             GetObjectRequest objectRequest = GetObjectRequest.builder()

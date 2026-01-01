@@ -1,35 +1,128 @@
-# Receipt Tracker Backend API
+# Receipt Tracker Backend
 
-REST API for receipt tracking with image storage, item management, and spending analytics.
+REST API for receipt tracking with image storage, CPI analytics, and spending insights.
 
-## Authentication
+## Quick Start
 
-All endpoints require JWT authentication in the Authorization header:
+```bash
+# Install dependencies
+./gradlew build
+
+# Set environment variables (see Environment Variables section)
+cp .env.example .env
+
+# Run application
+./gradlew bootRun
 ```
-Authorization: Bearer <your-jwt-token>
+
+## Database Setup
+
+### 1. Create Supabase Project
+Create a new project at [supabase.com](https://supabase.com)
+
+### 2. Run Schema Script
+Execute the `schema.sql` file in your Supabase SQL Editor:
+```bash
+# Copy contents of schema.sql and run in Supabase SQL Editor
+# This creates all tables, indexes, and seed data
+```
+
+The schema includes:
+- **Users** (managed by Supabase Auth)
+- **Categories** (8 predefined spending categories)
+- **Receipts** (user receipts with S3 image storage)
+- **Receipt Items** (line items for each receipt)
+- **Personal CPI Monthly** (calculated user inflation data)
+- **Official CPI Data** (BLS government inflation data)
+
+## AWS Setup
+
+### S3 Bucket for Receipt Images
+```bash
+# Create S3 bucket
+aws s3 mb s3://personal-cpi-receipts --region us-east-1
+
+# Enable CORS (optional, for direct browser uploads)
+aws s3api put-bucket-cors --bucket personal-cpi-receipts --cors-configuration file://cors.json
+```
+
+### Lambda Function (Optional - for receipt OCR)
+```bash
+# Build JAR
+./gradlew clean shadowJar
+
+# Deploy using SAM
+sam build
+sam deploy --guided
+```
+
+The Lambda function uses AWS Textract to extract receipt data from uploaded images.
+
+### SQS Queue (Optional - for async processing)
+Created automatically via `template.yaml`:
+- **receipt-processing-queue** - Main queue for receipt processing
+- **receipt-processing-dlq** - Dead letter queue for failed messages
+
+## Environment Variables
+
+Create a `.env` file with:
+
+```properties
+# Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-anon-key
+SUPABASE_JWT_SECRET=your-jwt-secret
+
+# AWS
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+S3_BUCKET_NAME=personal-cpi-receipts
+
+# BLS API (for official CPI data)
+BLS_API_KEY=your-bls-api-key
+
+# Application
+SPRING_PROFILES_ACTIVE=dev
 ```
 
 ## API Endpoints
 
-### Receipt Endpoints
+All endpoints require JWT authentication via `Authorization: Bearer <token>` header (except auth endpoints).
+
+### Authentication
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/receipts` | Create receipt with optional items |
-| GET | `/api/receipts/all` | Get all receipts with items |
-| GET | `/api/receipts/{id}` | Get receipt by ID |
-| GET | `/api/receipts/date-range` | Filter by date range (params: startDate, endDate) |
-| GET | `/api/receipts/category/{categoryId}` | Filter by category |
-| GET | `/api/receipts/recent` | Get 10 most recent receipts |
-| PUT | `/api/receipts/{id}` | Update receipt |
-| DELETE | `/api/receipts/{id}` | Delete receipt (cascades to items and S3 image) |
-| PATCH | `/api/receipts/{id}/category` | Update category only |
-| GET | `/api/receipts/summary/current-month` | Current month spending by category |
-| GET | `/api/receipts/summary/period` | Period spending (params: startDate, endDate) |
-| GET | `/api/receipts/summary/monthly` | Monthly spending breakdown |
-| GET | `/api/receipts/total` | Total spending |
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/login` | Login and get JWT token |
 
-### Receipt Item Endpoints
+### Receipts
+
+| Method | Endpoint | Description | Query Params |
+|--------|----------|-------------|--------------|
+| POST | `/api/receipts` | Create receipt with optional items | - |
+| GET | `/api/receipts/all` | Get all user receipts (paginated) | `page`, `size`, `sortBy`, `sortDir` |
+| GET | `/api/receipts/{id}` | Get receipt by ID | - |
+| GET | `/api/receipts/date-range` | Filter receipts by date range | `startDate`, `endDate`, `page`, `size` |
+| GET | `/api/receipts/category/{categoryId}` | Filter receipts by category | `page`, `size` |
+| GET | `/api/receipts/recent` | Get 10 most recent receipts | - |
+| PUT | `/api/receipts/{id}` | Update receipt | - |
+| DELETE | `/api/receipts/{id}` | Delete receipt (cascades to items & S3) | - |
+| PATCH | `/api/receipts/{id}/category` | Update category only | - |
+| GET | `/api/receipts/summary/current-month` | Current month spending by category | - |
+| GET | `/api/receipts/summary/period` | Period spending summary | `startDate`, `endDate` |
+| GET | `/api/receipts/summary/monthly` | Monthly spending breakdown | - |
+| GET | `/api/receipts/total` | Total spending for user | - |
+
+### Receipt Images (S3)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/receipts/upload` | Upload receipt image (multipart/form-data) |
+| GET | `/api/receipts/receipt-image` | Get presigned URL for image (param: `key`) |
+
+### Receipt Items
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -41,16 +134,25 @@ Authorization: Bearer <your-jwt-token>
 | DELETE | `/api/receipt-items/{itemId}` | Delete item |
 | DELETE | `/api/receipt-items/receipt/{receiptId}` | Delete all items for receipt |
 
-### S3 Image Endpoints
+### Personal CPI
+
+| Method | Endpoint | Description | Query Params |
+|--------|----------|-------------|--------------|
+| GET | `/api/cpi/personal` | Get personal CPI for month | `year`, `month` (defaults to current) |
+| GET | `/api/cpi/comparison` | Compare personal vs official CPI | `year`, `month` (defaults to current) |
+| GET | `/api/cpi/comparison/timeseries` | Time series comparison | `startDate`, `endDate` |
+| POST | `/api/cpi/calculate` | Trigger CPI calculation | `year`, `month` (defaults to current) |
+| GET | `/api/cpi/official` | Get official CPI data | `year`, `month`, `categoryId` (optional) |
+
+### Admin
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/receipts/upload` | Upload image (multipart/form-data) |
-| GET | `/api/receipts/receipt-image` | Get presigned URL (param: key) |
+| POST | `/api/admin/cpi/fetch` | Fetch latest BLS CPI data (24 months) |
 
 ## Request/Response Examples
 
-### Create Receipt
+### Create Receipt with Items
 ```json
 POST /api/receipts
 {
@@ -66,14 +168,14 @@ POST /api/receipts
 }
 ```
 
-Response:
+**Response:**
 ```json
 {
   "receiptId": 1,
   "storeName": "Walmart",
   "purchaseDate": "2025-12-28",
   "categoryId": 1,
-  "categoryName": "Groceries",
+  "categoryName": "Food and Beverages",
   "amount": 45.99,
   "createdAt": "2025-12-28T20:40:44",
   "imageKey": "receipts/123/1735441234567_receipt.jpg",
@@ -90,70 +192,65 @@ Response:
 }
 ```
 
-### Upload Image
+### Upload Receipt Image
 ```bash
 POST /api/receipts/upload
 Content-Type: multipart/form-data
 Field: file
 
-Response:
+# Response
 {
   "key": "receipts/123/1735441234567_receipt.jpg",
   "message": "File uploaded successfully"
 }
 ```
 
-### Update Category
-```json
-PATCH /api/receipts/{id}/category
+### Get Personal CPI Comparison
+```bash
+GET /api/cpi/comparison?year=2024&month=12
+
+# Response
 {
-  "categoryId": 2
+  "year": 2024,
+  "month": 12,
+  "personalCpi": [
+    {
+      "categoryId": 1,
+      "categoryName": "Food and Beverages",
+      "totalSpending": 450.00,
+      "momChangePercent": 5.2,
+      "yoyChangePercent": 12.3
+    }
+  ],
+  "officialCpi": [
+    {
+      "categoryId": 1,
+      "categoryName": "Food and Beverages",
+      "indexValue": 315.162,
+      "momChangePercent": 0.3,
+      "yoyChangePercent": 2.7
+    }
+  ]
 }
 ```
 
-## Data Models
+## Categories
 
-### Receipt
-```typescript
-{
-  receiptId: number;
-  storeName: string;
-  purchaseDate: string;        // ISO date (YYYY-MM-DD)
-  categoryId: number;           // 1-8
-  categoryName: string;
-  amount: number;
-  createdAt: string;            // ISO datetime
-  imageKey?: string;
-  imageUrl?: string;            // Presigned URL (temporary)
-  items: ReceiptItem[];
-}
-```
-
-### ReceiptItem
-```typescript
-{
-  receiptItemId: number;
-  receiptId: number;
-  itemName: string;
-  quantity: number;
-  unitPrice: number;
-}
-```
-
-### MonthlySpending
-```typescript
-{
-  year: number;
-  month: number;              // 1-12
-  monthName: string;          // "January", "February", etc.
-  totalAmount: number;
-}
-```
+| ID | Name | BLS Series ID |
+|----|------|---------------|
+| 1 | Food and Beverages | CUUR0000SAF |
+| 2 | Housing | CUUR0000SAH |
+| 3 | Apparel | CUUR0000SAA |
+| 4 | Transportation | CUUR0000SAT |
+| 5 | Medical Care | CUUR0000SAM |
+| 6 | Recreation | CUUR0000SAR |
+| 7 | Education and Communication | CUUR0000SAE |
+| 8 | Other Goods and Services | CUUR0000SAG |
 
 ## Error Responses
 
-| Status | Response |
-|--------|----------|
+| Status | Example Response |
+|--------|------------------|
 | 400 | `{ "error": "Receipt not found" }` |
 | 401 | `{ "error": "User not authenticated" }` |
 | 403 | `{ "error": "Access denied to this image" }` |
@@ -162,128 +259,21 @@ PATCH /api/receipts/{id}/category
 ## Important Notes
 
 - All receipt responses automatically include items
-- Presigned image URLs expire; use fresh URLs from latest fetch
+- Presigned S3 URLs expire after 1 hour; fetch fresh URLs as needed
 - Deleting receipts cascades to items and S3 images
-- Category IDs valid range: 1-8
 - Date format: ISO (YYYY-MM-DD)
 - Users can only access their own receipts/items
+- Pagination defaults: `page=0`, `size=20`
 
-## Development
+## Build & Test
 
-### Build and Test
 ```bash
+# Build
 ./gradlew build
+
+# Run tests
 ./gradlew test
+
+# Create JAR
+./gradlew shadowJar
 ```
-
-### LocalStack Lambda Development
-
-#### Start LocalStack
-```bash
-cd localstack
-docker-compose up -d
-cd ..
-```
-
-#### Deploy Lambda
-```bash
-export AWS_DEFAULT_REGION=us-east-1
-
-# Build JAR
-./gradlew clean shadowJar
-
-# Create S3 bucket
-aws s3 mb s3://lambda-deployments --endpoint-url=http://localhost:4566
-
-# Upload JAR
-aws s3 cp build/libs/personal-cpi-backend-0.0.1-SNAPSHOT-all.jar \
-  s3://lambda-deployments/function.jar --endpoint-url=http://localhost:4566
-
-# Create Lambda function
-aws lambda create-function \
-  --endpoint-url=http://localhost:4566 \
-  --function-name my-java-lambda \
-  --runtime java21 \
-  --handler PersonalCPI.PersonalCPI.lambda.ReceiptLambdaHandler::handleRequest \
-  --role arn:aws:iam::000000000000:role/dummy \
-  --code S3Bucket=lambda-deployments,S3Key=function.jar \
-  --timeout 60 \
-  --memory-size 512
-```
-
-#### Invoke Lambda
-```bash
-aws lambda invoke \
-  --endpoint-url=http://localhost:4566 \
-  --function-name my-java-lambda \
-  --cli-binary-format raw-in-base64-out \
-  --payload file://localstack/s3-event.json \
-  response.json
-
-cat response.json
-```
-
-#### Update Lambda (after code changes)
-```bash
-./gradlew clean shadowJar
-
-aws s3 cp build/libs/personal-cpi-backend-0.0.1-SNAPSHOT-all.jar \
-  s3://lambda-deployments/function.jar --endpoint-url=http://localhost:4566
-
-aws lambda update-function-code \
-  --endpoint-url=http://localhost:4566 \
-  --function-name my-java-lambda \
-  --s3-bucket lambda-deployments \
-  --s3-key function.jar
-```
-
-#### View Logs
-```bash
-# Lambda logs
-aws logs tail /aws/lambda/my-java-lambda --endpoint-url=http://localhost:4566 --follow
-
-# Container logs
-cd localstack && docker-compose logs -f localstack
-```
-
-#### Stop LocalStack
-```bash
-cd localstack
-docker-compose down      # Stop
-docker-compose down -v   # Stop and clean volumes
-```
-
-## Architecture
-
-### SOLID Principles
-- Single Responsibility: Separate controllers/services for receipts and items
-- Open/Closed: Services extensible without modification
-- Dependency Inversion: Services depend on repository interfaces
-
-### Transaction Management
-- Create/update/delete operations use `@Transactional`
-- Items created/updated atomically with receipts
-- Rollback on errors ensures data consistency
-
-## Recent Changes
-
-### Receipt Items System
-- Added complete CRUD for receipt items
-- New endpoints: `/api/receipt-items/*`
-- Batch operations support
-- Items automatically included in receipt responses
-
-### Enhanced Receipt Endpoints
-- Create receipts with items in single request
-- Update receipts replaces items transactionally
-- Delete cascades to items and S3 images
-
-### Files Added
-- `ReceiptItemDto.java` - DTO for items
-- `ReceiptItemService.java` - Business logic
-- `ReceiptItemController.java` - REST endpoints
-
-### Files Modified
-- `ReceiptResponseDto.java` - Added items list
-- `ReceiptCreateDto.java` - Added optional items
-- `ReceiptService.java` - Enhanced with item support

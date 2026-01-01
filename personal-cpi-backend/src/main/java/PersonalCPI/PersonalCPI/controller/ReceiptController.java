@@ -10,8 +10,16 @@ import PersonalCPI.PersonalCPI.model.User;
 import PersonalCPI.PersonalCPI.service.JwtService;
 import PersonalCPI.PersonalCPI.service.ReceiptService;
 import PersonalCPI.PersonalCPI.service.S3Service;
+import PersonalCPI.PersonalCPI.validation.FileUploadValidator;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +37,8 @@ import java.util.Map;
 @Controller
 @RequestMapping("/api/receipts")
 public class ReceiptController {
+    private static final Logger logger = LoggerFactory.getLogger(ReceiptController.class);
+    
     private final ReceiptService receiptService;
     private final JwtService jwtService;
     private final S3Service s3Service;
@@ -59,7 +69,7 @@ public class ReceiptController {
     }
     
     @PostMapping
-    public ResponseEntity<?> createReceipt( @RequestBody ReceiptCreateDto receiptDto) {
+    public ResponseEntity<?> createReceipt(@Valid @RequestBody ReceiptCreateDto receiptDto) {
         try {
             Long userId = getAuthenticatedUserId();
             ReceiptResponseDto createdReceipt = receiptService.createReceipt(userId, receiptDto);
@@ -67,19 +77,31 @@ public class ReceiptController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
+            logger.error("Failed to create receipt", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to create receipt"));
         }
     }
 
-     //Get all receipts for the authenticated user
+     /**
+      * Get all receipts for the authenticated user
+      * Supports pagination with optional query parameters:
+      */
     @GetMapping("/all")
-    public ResponseEntity<?> getUserReceipts() {
+    public ResponseEntity<?> getUserReceipts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "purchaseDate") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
         try {
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-
             Long userId = getAuthenticatedUserId();
-            List<ReceiptResponseDto> receipts = receiptService.getUserReceipts(userId);
+            
+            // Create pageable object
+            Sort.Direction direction = sortDir.equalsIgnoreCase("desc") ? Sort.Direction.DESC : Sort.Direction.ASC;
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+            
+            // Get paginated receipts
+            Page<ReceiptResponseDto> receipts = receiptService.getUserReceipts(userId, pageable);
             return ResponseEntity.ok(receipts);
         } catch (Exception e) {
             System.out.println("Controller error: " + e.getMessage());
@@ -89,14 +111,19 @@ public class ReceiptController {
         }
     }
 
-     // Get receipts by date range
+     /**
+      * Get receipts by date range (with pagination)
+      */
     @GetMapping("/date-range")
     public ResponseEntity<?> getUserReceiptsByDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         try {
             Long userId = getAuthenticatedUserId();
-            List<ReceiptResponseDto> receipts = receiptService.getUserReceiptsByDateRange(userId, startDate, endDate);
+            Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "purchaseDate"));
+            Page<ReceiptResponseDto> receipts = receiptService.getUserReceiptsByDateRange(userId, startDate, endDate, pageable);
             return ResponseEntity.ok(receipts);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -104,12 +131,18 @@ public class ReceiptController {
         }
     }
 
-    // Get receipts by category
+    /**
+     * Get receipts by category (with pagination)
+     */
     @GetMapping("/category/{categoryId}")
-    public ResponseEntity<?> getUserReceiptsByCategory(@PathVariable Long categoryId) {
+    public ResponseEntity<?> getUserReceiptsByCategory(
+            @PathVariable Long categoryId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         try {
             Long userId = getAuthenticatedUserId();
-            List<ReceiptResponseDto> receipts = receiptService.getUserReceiptsByCategory(userId, categoryId);
+            Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "purchaseDate"));
+            Page<ReceiptResponseDto> receipts = receiptService.getUserReceiptsByCategory(userId, categoryId, pageable);
             return ResponseEntity.ok(receipts);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -291,16 +324,22 @@ public class ReceiptController {
             @RequestParam("file") MultipartFile file
     ) {
         try {
+            // Validate file before upload
+            FileUploadValidator.validate(file);
+            
             // Get authenticated user ID
             Long userId = getAuthenticatedUserId();
             
             // Generate unique S3 key: receipts/{userId}/{timestamp}_{filename}
             String timestamp = String.valueOf(System.currentTimeMillis());
             String originalFilename = file.getOriginalFilename();
-            String key = String.format("receipts/%d/%s_%s", userId, timestamp, originalFilename);
+            String sanitizedFilename = FileUploadValidator.sanitizeFilename(originalFilename);
+            String key = String.format("receipts/%d/%s_%s", userId, timestamp, sanitizedFilename);
             
             // Upload to S3
             s3Service.putObject(key, file);
+            
+            logger.info("File uploaded successfully: {} by user {}", key, userId);
             
             // Return structured response with the S3 key
             return ResponseEntity.ok(Map.of(
@@ -311,6 +350,7 @@ public class ReceiptController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "User not authenticated"));
         } catch (Exception e) {
+            logger.error("Failed to upload file", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to upload to bucket: " + e.getMessage()));
         }

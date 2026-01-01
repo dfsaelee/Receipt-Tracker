@@ -8,6 +8,8 @@ import org.antlr.v4.runtime.misc.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "receipts")
@@ -51,6 +53,12 @@ public class Receipt {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", insertable = false, updatable = false)
     private Category category;
+
+    // One-to-Many relationship with ReceiptItems
+    // This enables JOIN FETCH to load items in a single query (fixes N+1 problem)
+    @OneToMany(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receipt_id", referencedColumnName = "receipt_id", insertable = false, updatable = false)
+    private List<ReceiptItem> items = new ArrayList<>();
 
     public Receipt() {
     }

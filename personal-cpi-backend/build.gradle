@@ -30,6 +30,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-cache'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'com.github.ben-manes.caffeine:caffeine'
     implementation 'org.springframework:spring-test'
     compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
@@ -41,11 +44,12 @@ dependencies {
     implementation 'io.jsonwebtoken:jjwt-impl:0.11.5'
     implementation 'io.jsonwebtoken:jjwt-jackson:0.11.5'
     testImplementation 'com.h2database:h2'
+    
     // AWS SDK v2 dependencies for S3
     implementation(platform("software.amazon.awssdk:bom:2.20.26"))
     implementation("software.amazon.awssdk:s3")
-    implementation("software.amazon.awssdk:textract")  // For receipt OCR
-    implementation("software.amazon.awssdk:sqs")  // For SQS queue
+    implementation("software.amazon.awssdk:textract")
+    implementation("software.amazon.awssdk:sqs")
     
     // AWS Lambda Runtime dependencies (v1 - required for Lambda handlers)
     implementation 'com.amazonaws:aws-lambda-java-core:1.2.3'
@@ -53,6 +57,13 @@ dependencies {
     
     // AWS SDK v2 Lambda client (if you need to invoke Lambda from your app)
     implementation("software.amazon.awssdk:lambda")
+    
+    // Rate limiting with Bucket4j
+    implementation 'com.bucket4j:bucket4j-core:8.10.1'
+    implementation 'com.bucket4j:bucket4j-caffeine:8.10.1'
+    
+    // Security - XSS prevention
+    implementation 'org.owasp.encoder:encoder:1.2.3'
 }
 
 tasks.named('test') {

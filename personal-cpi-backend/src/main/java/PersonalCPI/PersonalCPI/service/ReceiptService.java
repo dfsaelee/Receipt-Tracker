@@ -11,14 +11,19 @@ import PersonalCPI.PersonalCPI.model.ReceiptItem;
 import PersonalCPI.PersonalCPI.repository.CategoryRepository;
 import PersonalCPI.PersonalCPI.repository.ReceiptItemRepository;
 import PersonalCPI.PersonalCPI.repository.ReceiptRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cglib.core.Local;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,17 +31,23 @@ import java.util.stream.Collectors;
 
 @Service
 public class ReceiptService {
+    private static final Logger logger = LoggerFactory.getLogger(ReceiptService.class);
+    
     private final ReceiptRepository receiptRepository;
     private final CategoryRepository categoryRepository;
     private final S3Service s3Service;
     private final ReceiptItemRepository receiptItemRepository;
+    private final SecurityEventLogger securityLogger;
 
     @Autowired
-    public ReceiptService(ReceiptRepository receiptRepository, CategoryRepository categoryRepository, S3Service s3Service, ReceiptItemRepository receiptItemRepository) {
+    public ReceiptService(ReceiptRepository receiptRepository, CategoryRepository categoryRepository, 
+                         S3Service s3Service, ReceiptItemRepository receiptItemRepository,
+                         SecurityEventLogger securityLogger) {
         this.receiptRepository = receiptRepository;
         this.categoryRepository = categoryRepository;
         this.s3Service = s3Service;
         this.receiptItemRepository = receiptItemRepository;
+        this.securityLogger = securityLogger;
     }
 
     // Crud
@@ -78,14 +89,53 @@ public class ReceiptService {
         return convertToResponseDto(savedReceipt);
     }
 
+    /**
+     * Get all receipts for a user.
+     * Loads receipts with associated items in a single query.
+     */
     @Transactional(readOnly = true)
     public List<ReceiptResponseDto> getUserReceipts(Long userId) {
-        List<Receipt> receipts = receiptRepository.findByUserIdOrderByPurchaseDateDesc(userId);
+        List<Receipt> receipts = receiptRepository.findByUserIdWithItems(userId);
         return receipts.stream()
                 .map(this::convertToResponseDto)
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Get paginated receipts for a user.
+     * Uses two-query approach for efficient pagination with related entities.
+     */
+    @Transactional(readOnly = true)
+    public Page<ReceiptResponseDto> getUserReceipts(Long userId, Pageable pageable) {
+        // Get paginated receipts
+        Page<Receipt> receiptPage = receiptRepository.findByUserIdOrderByPurchaseDateDesc(userId, pageable);
+        
+        // If we have receipts, fetch them with items using JOIN FETCH
+        if (!receiptPage.isEmpty()) {
+            List<Long> receiptIds = receiptPage.getContent().stream()
+                    .map(Receipt::getReceiptId)
+                    .collect(Collectors.toList());
+            
+            // Fetch receipts with items
+            List<Receipt> receiptsWithItems = receiptRepository.findByReceiptIdInWithItems(receiptIds);
+            
+            // Convert to DTOs
+            Map<Long, Receipt> receiptMap = receiptsWithItems.stream()
+                    .collect(Collectors.toMap(Receipt::getReceiptId, r -> r));
+            
+            List<ReceiptResponseDto> dtos = receiptPage.getContent().stream()
+                    .map(r -> convertToResponseDto(receiptMap.getOrDefault(r.getReceiptId(), r)))
+                    .collect(Collectors.toList());
+            
+            return new PageImpl<>(dtos, pageable, receiptPage.getTotalElements());
+        }
+        
+        return receiptPage.map(this::convertToResponseDto);
+    }
+
+    /**
+     * Get receipts by date range (non-paginated)
+     */
     @Transactional(readOnly = true)
     public List<ReceiptResponseDto> getUserReceiptsByDateRange(Long userId, LocalDate startDate, LocalDate endDate) {
         List<Receipt> receipts = receiptRepository.findByUserIdAndPurchaseDateBetween(userId, startDate, endDate);
@@ -94,12 +144,44 @@ public class ReceiptService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Get receipts by date range (PAGINATED)
+     */
+    @Transactional(readOnly = true)
+    public Page<ReceiptResponseDto> getUserReceiptsByDateRange(Long userId, LocalDate startDate, LocalDate endDate, Pageable pageable) {
+        // Validate date range
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("Start date must be before or equal to end date");
+        }
+        
+        // Prevent querying too large date ranges (> 2 years)
+        long daysBetween = ChronoUnit.DAYS.between(startDate, endDate);
+        if (daysBetween > 730) {
+            throw new IllegalArgumentException("Date range too large (maximum 2 years allowed)");
+        }
+        
+        Page<Receipt> receipts = receiptRepository.findByUserIdAndPurchaseDateBetween(userId, startDate, endDate, pageable);
+        return receipts.map(this::convertToResponseDto);
+    }
+
+    /**
+     * Get receipts by category (non-paginated)
+     */
     @Transactional(readOnly = true)
     public List<ReceiptResponseDto> getUserReceiptsByCategory(Long userId, Long categoryId) {
         List<Receipt> receipts = receiptRepository.findByUserIdAndCategoryId(userId, categoryId);
         return receipts.stream()
                 .map(this::convertToResponseDto)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get receipts by category (PAGINATED)
+     */
+    @Transactional(readOnly = true)
+    public Page<ReceiptResponseDto> getUserReceiptsByCategory(Long userId, Long categoryId, Pageable pageable) {
+        Page<Receipt> receipts = receiptRepository.findByUserIdAndCategoryId(userId, categoryId, pageable);
+        return receipts.map(this::convertToResponseDto);
     }
 
     @Transactional(readOnly = true)
@@ -111,6 +193,7 @@ public class ReceiptService {
         }
 
         if (!receipt.get().getUserId().equals(userId)) {
+            securityLogger.logAccessDenied(userId, receiptId, "Receipt");
             throw new IllegalArgumentException("Receipt does not belong to user");
         }
 
@@ -188,10 +271,10 @@ public class ReceiptService {
         if (imageKey != null && !imageKey.isEmpty()) {
             try {
                 s3Service.deleteObject(imageKey);
-                System.out.println("Deleted S3 object: " + imageKey);
+                logger.info("Deleted S3 object: {}", imageKey);
             } catch (Exception e) {
                 // Log error but don't fail the deletion
-                System.err.println("Failed to delete S3 object: " + imageKey + " - " + e.getMessage());
+                logger.error("Failed to delete S3 object: {} - {}", imageKey, e.getMessage());
             }
         }
 
@@ -293,7 +376,7 @@ public class ReceiptService {
     }
 
     /**
-     * Convert Receipt entity to ReceiptResponseDto
+     * Convert Receipt entity to ReceiptResponseDto.
      */
     private ReceiptResponseDto convertToResponseDto(Receipt receipt) {
         String categoryName = null;
@@ -309,21 +392,51 @@ public class ReceiptService {
                 imageUrl = s3Service.createPresignedGetUrl(receipt.getImageKey());
             } catch (Exception e) {
                 // Log error but don't fail the request
-                System.err.println("Failed to generate presigned URL for key: " + receipt.getImageKey());
+                logger.error("Failed to generate presigned URL for key: {}", receipt.getImageKey());
             }
         }
 
-        // Get receipt items
-        List<ReceiptItemDto> items = receiptItemRepository.findByReceiptId(receipt.getReceiptId())
-                .stream()
-                .map(item -> new ReceiptItemDto(
-                        item.getReceiptItemId(),
-                        item.getReceiptId(),
-                        item.getItemName(),
-                        item.getQuantity(),
-                        item.getUnitPrice()
-                ))
-                .collect(Collectors.toList());
+        // Load receipt items
+        List<ReceiptItemDto> items;
+        
+        // Use items if already loaded, otherwise fetch from repository
+        if (receipt.getItems() != null && !receipt.getItems().isEmpty()) {
+            try {
+                items = receipt.getItems().stream()
+                        .map(item -> new ReceiptItemDto(
+                                item.getReceiptItemId(),
+                                item.getReceiptId(),
+                                item.getItemName(),
+                                item.getQuantity(),
+                                item.getUnitPrice()
+                        ))
+                        .collect(Collectors.toList());
+            } catch (Exception e) {
+                // Fallback to repository query
+                items = receiptItemRepository.findByReceiptId(receipt.getReceiptId())
+                        .stream()
+                        .map(item -> new ReceiptItemDto(
+                                item.getReceiptItemId(),
+                                item.getReceiptId(),
+                                item.getItemName(),
+                                item.getQuantity(),
+                                item.getUnitPrice()
+                        ))
+                        .collect(Collectors.toList());
+            }
+        } else {
+            // Items not loaded, fetch from repository
+            items = receiptItemRepository.findByReceiptId(receipt.getReceiptId())
+                    .stream()
+                    .map(item -> new ReceiptItemDto(
+                            item.getReceiptItemId(),
+                            item.getReceiptId(),
+                            item.getItemName(),
+                            item.getQuantity(),
+                            item.getUnitPrice()
+                    ))
+                    .collect(Collectors.toList());
+        }
 
         return new ReceiptResponseDto(
                 receipt.getReceiptId(),
